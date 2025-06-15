@@ -86,6 +86,11 @@
       padding: 0.4rem 1rem;
       cursor: pointer;
     }
+    #timeElapsed {
+      text-align: center;
+      margin: 1rem 0;
+      font-weight: bold;
+    }
     @media(max-width: 600px) {
       .flex {
         flex-direction: column;
@@ -99,8 +104,8 @@
     <h1>Social Automation</h1>
 
     <div class="form-group">
-      <label>Video Topic (optional) / Title Idea (optional)</label>
-      <input type="text" id="videoTopic" placeholder="Ex: AI in Education">
+      <label>Video Topic / Title Idea (optional)</label>
+      <input type="text" id="videoTopic" placeholder="Ex: How AI is Changing the World">
     </div>
 
     <div class="form-group">
@@ -119,7 +124,9 @@
     </div>
 
     <button onclick="generateContent()">Generate</button>
-    <div id="loading">⏳ Generating take some time...</div>
+
+    <div id="timeElapsed"></div>
+    <div id="loading">⏳ Generating...</div>
 
     <div class="flex spacer" id="output" style="display: none;">
       <div class="output-card">
@@ -159,6 +166,26 @@
   </div>
 
   <script>
+    let startTime = null;
+    let interval = null;
+
+    function startTimer() {
+      startTime = new Date().getTime();
+      document.getElementById('timeElapsed').innerText = "Elapsed: 0s";
+      interval = setInterval(() => {
+        const now = new Date().getTime();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        document.getElementById('timeElapsed').innerText = `Elapsed: ${elapsed}s`;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(interval);
+      const now = new Date().getTime();
+      const elapsed = Math.floor((now - startTime) / 1000);
+      document.getElementById('timeElapsed').innerText = `Completed in: ${elapsed}s ✅`;
+    }
+
     function toggleTheme() {
       const html = document.documentElement;
       html.dataset.theme = html.dataset.theme === 'light' ? 'dark' : 'light';
@@ -174,7 +201,6 @@
       const title = document.getElementById('titleOutput').innerText;
       const desc = document.getElementById('descOutput').innerText;
       const tags = document.getElementById('tagsOutput').innerText;
-
       const blob = new Blob([`Title:\n${title}\n\nDescription:\n${desc}\n\nTags:\n${tags}`], { type: 'text/plain' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -187,56 +213,57 @@
       const length = document.getElementById('videoLength').value;
       const desc = document.getElementById('videoDesc').value;
 
-      const prompt = `Generate a full YouTube content package for a video. \n\nVideo Topic: ${topic || 'N/A'}\nVideo Length: ${length} minutes\nVideo Description: ${desc}\n\nOutput format:\n- A YouTube SEO Title (70-100 characters)\n- A detailed introduction (100-250 words)\n- Timestamp breakdown\n- 15–25 YouTube hashtags\n- Search queries\n- Final CTA paragraph\n- List of SEO tags (not hashtags)`;
+      const prompt = `Generate a full YouTube content package for a video.\n\nVideo Topic: ${topic || 'N/A'}\nVideo Length: ${length} minutes\nVideo Description: ${desc}\n\nOutput format:\n1. SEO Title (70-100 chars)\n2. Introduction (100–250 words)\n3. Timestamps\n4. Search Queries\n5. 15–25 YouTube Hashtags\n6. Final CTA\n7. SEO Tags list`;
 
       document.getElementById('loading').style.display = 'block';
       document.getElementById('output').style.display = 'none';
+      startTimer();
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer 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',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
-          messages: [
-            { role: 'user', content: prompt }
-          ]
-        })
-      });
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer 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',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+            messages: [
+              { role: 'user', content: prompt }
+            ]
+          })
+        });
 
-      const data = await response.json();
-      const content = data.choices[0].message.content;
+        const data = await res.json();
+        const content = data.choices[0].message.content;
 
-      const [title, descPart, tags] = content.split(/\n\n+/);
+        const [title, description, ...rest] = content.split(/\n\n+/);
+        const tags = rest.join('\n\n');
 
-      document.getElementById('titleOutput').innerText = title.trim();
-      document.getElementById('descOutput').innerText = descPart.trim();
-      document.getElementById('tagsOutput').innerText = tags.trim();
+        document.getElementById('titleOutput').innerText = title.trim();
+        document.getElementById('descOutput').innerText = description.trim();
+        document.getElementById('tagsOutput').innerText = tags.trim();
 
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('output').style.display = 'flex';
+        document.getElementById('output').style.display = 'flex';
+      } catch (err) {
+        alert("Something went wrong while generating content.");
+        console.error(err);
+      } finally {
+        stopTimer();
+        document.getElementById('loading').style.display = 'none';
+      }
     }
 
     function generateVideo() {
       const key = document.getElementById('openaiKey').value;
-      if (!key.startsWith('sk-')) {
-        alert('Please enter a valid OpenAI API key!');
-        return;
-      }
-      const prompt = "Create a full YouTube video script and scenes for the topic user gave above.";
-      alert(`Simulating video generation with your key: ${key}.\nPrompt: ${prompt}`);
+      if (!key.startsWith('sk-')) return alert("Please enter a valid OpenAI API key.");
+      alert("Simulating OpenAI video generation with your key...");
     }
 
     function generateThumbnail() {
       const key = document.getElementById('openaiKey').value;
-      if (!key.startsWith('sk-')) {
-        alert('Please enter a valid OpenAI API key!');
-        return;
-      }
-      const prompt = "Generate a 16:9 thumbnail image description for the YouTube video above.";
-      alert(`Simulating thumbnail generation using your OpenAI key.\nPrompt: ${prompt}`);
+      if (!key.startsWith('sk-')) return alert("Please enter a valid OpenAI API key.");
+      alert("Simulating thumbnail generation using your OpenAI key...");
     }
   </script>
 </body>
